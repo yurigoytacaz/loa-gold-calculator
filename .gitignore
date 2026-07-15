@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.svelte-kit/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+cloudflare/
+worker.js
+# local API tester (do not commit)
+tools/ags-api-tester.mjs
+supabase/
+
+# editor
+.vscode/
+.idea/
+
+# system
+Thumbs.db
+# Gemini CLI context file
+GEMINI.md
+
+# Claude 
+.claude/
