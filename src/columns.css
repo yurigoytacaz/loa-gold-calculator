@@ -24,7 +24,10 @@
 .boss-modes button b { font-size: 16px; }
 .boss-modes button small { margin-top: 2px; color: var(--muted); font: 400 13px 'DM Mono', monospace; }
 .boss-modes button strong { font: 500 15px 'DM Mono', monospace; margin-top: 0; }
-.boss-modes button.selected { background: #3a3c38; color: var(--ink); border-color: var(--line); }
+.boss-modes button.selected { color: var(--ink); border-color: var(--line); }
+.boss-modes button.selected.mode-nightmare { background: #433852; }
+.boss-modes button.selected.mode-hard { background: #504129; }
+.boss-modes button.selected.mode-normal { background: #3d3f48; }
 .boss-modes button.selected small { color: #b8b7ae; }
 .boss-modes button.locked { opacity: .27; cursor: not-allowed; }
 .check { width: 18px; height: 18px; display: none; place-items: center; border: 1px solid currentColor; font-size: 17px; }
