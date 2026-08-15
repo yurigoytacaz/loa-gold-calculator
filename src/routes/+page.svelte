@@ -30,6 +30,7 @@
   let renameRosterName = $state('');
   let draft = $state<{ nick: string; level: number | undefined; className: string }>({ nick: '', level: undefined, className: '' });
   let loaded = $state(false);
+  let confirmCharacterId = $state<string | null>(null);
   let active = $derived(rosters.find((r) => r.id === activeId));
   let earners = $derived(active?.characters.slice(0, 6) ?? []);
   let reserves = $derived(active?.characters.slice(6) ?? []);
@@ -44,23 +45,27 @@
   });
 
   const fmt = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
+  function fmtK(value: number): string {
+    if (value % 1000 === 0 && value >= 1000) return (value / 1000) + 'K';
+    return fmt(value);
+  }
   function raidById(id: string) { return raids.find((r) => r.id === id); }
-  function splitGold(raid: Raid) {
-    if (raid.padre) return { free: 0, roster: 0, character: raid.gold };
-    if (raid.normal) return { free: raid.gold / 2, roster: raid.gold / 2, character: 0 };
-    return { free: raid.gold, roster: 0, character: 0 };
+  function splitGold(raid: Raid, characterLevel: number) {
+    if (characterLevel <= 1710) return { free: raid.gold / 2, roster: raid.gold / 2 };
+    if (raid.normal) return { free: raid.gold / 2, roster: raid.gold / 2 };
+    return { free: raid.gold, roster: 0 };
   }
   function characterTotals(character: Character) {
     return character.raids.reduce((sum, id) => {
       const raid = raidById(id); if (!raid) return sum;
-      const part = splitGold(raid);
-      return { free: sum.free + part.free, roster: sum.roster + part.roster, character: sum.character + part.character };
-    }, { free: 0, roster: 0, character: 0 });
+      const part = splitGold(raid, character.level);
+      return { free: sum.free + part.free, roster: sum.roster + part.roster };
+    }, { free: 0, roster: 0 });
   }
   let totals = $derived(earners.reduce((sum, char) => {
     const part = characterTotals(char);
-    return { free: sum.free + part.free, roster: sum.roster + part.roster, character: sum.character + part.character };
-  }, { free: 0, roster: 0, character: 0 }));
+    return { free: sum.free + part.free, roster: sum.roster + part.roster };
+  }, { free: 0, roster: 0 }));
 
   async function persist(next: Roster) {
     rosters = rosters.map((r) => r.id === next.id ? next : r); await saveRoster(next);
@@ -71,7 +76,7 @@
     rosters = [...rosters, roster]; activeId = roster.id; newRosterName = ''; showRosterForm = false; await saveRoster(roster);
   }
   async function removeRoster() {
-    if (!active || rosters.length === 1 || !confirm(`Excluir o roster “${active.name}”?`)) return;
+    if (!active || rosters.length === 1 || !confirm(`Excluir o roster "${active.name}"?`)) return;
     await deleteRoster(active.id); rosters = rosters.filter((r) => r.id !== active.id); activeId = rosters[0].id; menuOpen = false;
   }
   async function renameRoster() {
@@ -97,6 +102,7 @@
   }
   async function removeCharacter(id: string) {
     if (!active) return; await persist({ ...active, characters: active.characters.filter((c) => c.id !== id) });
+    confirmCharacterId = null;
   }
   async function toggleRaid(character: Character, raid: Raid) {
     if (!active || character.level < raid.level) return;
@@ -115,10 +121,9 @@
   <header>
     <button class="roster-trigger" onclick={() => rosterDrawerOpen = true}>{active?.name ?? 'Roster'} <span>{earners.length}/6</span></button>
     <section class="summary header-summary">
-      <div><span class="summary-icon char">♟</span><p>CHARACTER <small>Bound to character</small></p><strong>{fmt(totals.character)}</strong></div>
       <div><span class="summary-icon roster">⬡</span><p>ROSTER <small>Bound to roster</small></p><strong>{fmt(totals.roster)}</strong></div>
       <div><span class="summary-icon free">✦</span><p>TRADABLE <small>Disponível para uso</small></p><strong>{fmt(totals.free)}</strong></div>
-      <div><span class="summary-icon gold">◆</span><p>GOLD TOTAL <small>Todas as recompensas</small></p><strong>{fmt(totals.free + totals.roster + totals.character)}</strong></div>
+      <div><span class="summary-icon gold">◆</span><p>GOLD TOTAL <small>Todas as recompensas</small></p><strong>{fmt(totals.free + totals.roster)}</strong></div>
     </section>
   </header>
 
@@ -160,8 +165,19 @@
             <p class="eyebrow">Personagens no Roster</p>
             {#each active.characters as character}
               <div class="drawer-character-item">
-                <span class="nick">{character.nick}</span>
-                <span class="info">{character.className} · iLvl {character.level}</span>
+                <div class="drawer-character-info">
+                  <span class="nick">{character.nick}</span>
+                  <span class="info">{character.className} · {character.level}</span>
+                </div>
+                {#if confirmCharacterId === character.id}
+                  <div class="confirm-remove">
+                    <span>Remover?</span>
+                    <button class="confirm-yes" onclick={() => removeCharacter(character.id)}>Sim</button>
+                    <button class="confirm-no" onclick={() => confirmCharacterId = null}>Não</button>
+                  </div>
+                {:else}
+                  <button class="remove-char-btn" aria-label="Remover personagem" onclick={() => confirmCharacterId = character.id}>×</button>
+                {/if}
               </div>
             {/each}
           </div>
@@ -176,20 +192,23 @@
         {#each earners as character, index (character.id)}
           {@const ct = characterTotals(character)}
           <article class="character-card">
-            <div class="character-head"><div><h3>{character.nick}</h3><p>{character.className} · <b>iLvl {character.level}</b></p></div><span class="earner-badge">{index + 1}/6</span><button class="remove" aria-label="Remover personagem" onclick={() => removeCharacter(character.id)}>×</button></div>
-            <div class="raid-label"><span>RAIDS DA SEMANA</span><span>{character.raids.length}/3 selecionadas</span></div>
+            <div class="character-head"><div><h3>{character.nick}</h3><p>{character.className} · <b>{character.level}</b></p></div><span class="earner-badge">{index + 1}/6</span></div>
             <div class="raid-list">
               {#each raidBosses as boss}
                 <div class="raid-separator"><span>{boss}</span></div>
-                {#each raids.filter((raid) => raid.boss === boss).sort((a, b) => b.level - a.level || modeRank[b.mode] - modeRank[a.mode]) as raid}
-                  {@const locked = character.level < raid.level}
-                  <button class:selected={character.raids.includes(raid.id)} class:locked onclick={() => toggleRaid(character, raid)} disabled={locked} title={locked ? `Requer item level ${raid.level}` : ''}>
-                    <span class="check">{character.raids.includes(raid.id) ? '✓' : locked ? '⌁' : ''}</span><span><b>{raid.mode}</b><small>iLvl {raid.level}</small></span><strong>{fmt(raid.gold)}</strong>
-                  </button>
-                {/each}
+                <div class="boss-modes">
+                  {#each raids.filter((raid) => raid.boss === boss).sort((a, b) => b.level - a.level || modeRank[b.mode] - modeRank[a.mode]) as raid}
+                    {@const locked = character.level < raid.level}
+                    <button class:selected={character.raids.includes(raid.id)} class:locked onclick={() => toggleRaid(character, raid)} disabled={locked} title={locked ? `Requer item level ${raid.level}` : ''}>
+                      <span class="check">{character.raids.includes(raid.id) ? '✓' : locked ? '⌁' : ''}</span>
+                      <span class="info-col"><b>{raid.mode}</b></span>
+                      <strong>{fmtK(raid.gold)}</strong>
+                    </button>
+                  {/each}
+                </div>
               {/each}
             </div>
-            <footer><span>Gold deste personagem</span><b>{fmt(ct.free + ct.roster + ct.character)} <small>gold</small></b></footer>
+            <footer><span>Gold deste personagem</span><b>{fmtK(ct.free + ct.roster)} <small>gold</small></b></footer>
           </article>
         {/each}
       </div>
@@ -198,7 +217,7 @@
     {/if}
 
     {#if reserves.length}
-      <section class="reserves"><p class="eyebrow">RESERVAS · NÃO ENTRAM NO CÁLCULO</p><div>{#each reserves as character}<article><span><b>{character.nick}</b><small>{character.className} · iLvl {character.level}</small></span><mark>SEM GOLD</mark><button class="remove" onclick={() => removeCharacter(character.id)}>×</button></article>{/each}</div></section>
+      <section class="reserves"><p class="eyebrow">RESERVAS · NÃO ENTRAM NO CÁLCULO</p><div>{#each reserves as character}<article><span><b>{character.nick}</b><small>{character.className} · {character.level}</small></span><mark>SEM GOLD</mark></article>{/each}</div></section>
     {/if}
 
   </main>

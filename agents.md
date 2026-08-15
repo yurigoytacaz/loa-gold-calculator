@@ -64,6 +64,10 @@ Apresenta a soma totalizada do gold planejado para a semana, dividido em quatro 
 3. **Tradable/Free**: Gold livre e utilizável imediatamente.
 4. **Gold Total**: A soma de todas as recompensas.
 
+### 5. Cores dos niveis das Raids
+1. Nightmare: #3d3f48
+2. Hard: #504129
+3. Normal: #3d3f48
 ---
 
 ## 👥 Dados e Modelos

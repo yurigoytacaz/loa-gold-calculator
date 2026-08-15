@@ -9,7 +9,7 @@
     "build:static": "vite build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist -t true"
+    "deploy": "gh-pages -d dist -t"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",
